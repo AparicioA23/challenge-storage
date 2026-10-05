@@ -1,6 +1,6 @@
-import { StorageService } from './storageTypes';
+import type { WebStorageService } from '../types/storageTypes';
 
-export class SessionStorageService implements StorageService {
+export class SessionStorageService implements WebStorageService {
   private prefix: string;
 
   constructor(prefix: string = 'app_') {
@@ -11,7 +11,7 @@ export class SessionStorageService implements StorageService {
     return `${this.prefix}${key}`;
   }
 
-  save<T>(key: string, value: T): boolean {
+  async setItem<T>(key: string, value: T): Promise<boolean> {
     try {
       const serialized = JSON.stringify(value);
       sessionStorage.setItem(this.getKey(key), serialized);
@@ -22,7 +22,7 @@ export class SessionStorageService implements StorageService {
     }
   }
 
-  get<T>(key: string): T | null {
+  async getItem<T>(key: string): Promise<T | null> {
     try {
       const item = sessionStorage.getItem(this.getKey(key));
       if (item === null) {
@@ -35,7 +35,7 @@ export class SessionStorageService implements StorageService {
     }
   }
 
-  remove(key: string): boolean {
+  async removeItem(key: string): Promise<boolean> {
     try {
       sessionStorage.removeItem(this.getKey(key));
       return true;
@@ -45,7 +45,7 @@ export class SessionStorageService implements StorageService {
     }
   }
 
-  clear(): boolean {
+  async clear(): Promise<boolean> {
     try {
       const keysToRemove: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
@@ -62,7 +62,7 @@ export class SessionStorageService implements StorageService {
     }
   }
 
-  hasKey(key: string): boolean {
+  hasItem(key: string): boolean {
     return sessionStorage.getItem(this.getKey(key)) !== null;
   }
 

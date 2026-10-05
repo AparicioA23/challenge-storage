@@ -56,6 +56,14 @@ export interface StorageItem<T = unknown> {
 
 export type StorageMechanism = 'localStorage' | 'sessionStorage' | 'cookie' | 'indexedDB';
 
+export type WebStorageMechanism = Extract<StorageMechanism, 'localStorage' | 'sessionStorage'>;
+
+export type StorageType = StorageMechanism;
+
+export type StorageOperation = 'get' | 'set' | 'remove' | 'clear';
+
+export type StorageData = Record<string, string | number | boolean>;
+
 export interface StorageOptions {
   encrypt?: boolean;
   compress?: boolean;
@@ -70,9 +78,12 @@ export interface StorageResult<T = unknown> {
 }
 
 export interface StorageError {
-  code: string;
+  code?: string;
   message: string;
   mechanism?: StorageMechanism;
+  operation?: StorageOperation;
+  cause?: unknown;
+  timestamp?: Date;
 }
 
 export interface IndexedDBConfig {
@@ -106,19 +117,60 @@ export interface QueryOptions {
   limit?: number;
 }
 
-export interface StorageService {
-  get<T>(key: string): Promise<StorageResult<T>>;
-  set<T>(key: string, value: T, options?: StorageOptions): Promise<StorageResult>;
-  remove(key: string): Promise<StorageResult>;
-  clear(): Promise<StorageResult>;
-  keys(): Promise<StorageResult<string[]>>;
+export interface WebStorageService {
+  setItem<T>(key: string, value: T): Promise<boolean>;
+  getItem<T>(key: string): Promise<T | null>;
+  removeItem(key: string): Promise<boolean>;
+  clear(): Promise<boolean>;
+  hasItem(key: string): boolean;
+  getAllKeys(): string[];
 }
 
-export interface StorageHookResult<T> {
-  data: T | null;
-  isLoading: boolean;
-  error: StorageError | null;
-  setData: (value: T | ((prev: T | null) => T)) => Promise<void>;
-  removeData: () => Promise<void>;
-  refresh: () => Promise<void>;
+export interface CookieOptions {
+  days?: number;
+  expires?: number | Date;
+  path?: string;
+  domain?: string;
+  secure?: boolean;
+  sameSite?: 'Strict' | 'Lax' | 'None';
+  httpOnly?: boolean;
 }
+
+export interface CookieStorageService {
+  save<T>(key: string, value: T, options?: CookieOptions): boolean;
+  get<T>(key: string): T | null;
+  remove(key: string, options?: Partial<CookieOptions>): boolean;
+  getAll(): Record<string, string>;
+  clear(): boolean;
+}
+
+export interface IndexedDBStorageService {
+  init(): Promise<IDBDatabase>;
+  save<T extends object>(storeName: string, value: T): Promise<void>;
+  get<T extends object = Record<string, unknown>>(storeName: string, key: IDBValidKey): Promise<T | null>;
+  getAll<T extends object = Record<string, unknown>>(storeName: string): Promise<T[]>;
+  getAllKeys(storeName: string): Promise<IDBValidKey[]>;
+  remove(storeName: string, key: IDBValidKey): Promise<void>;
+  clear(storeName: string): Promise<void>;
+  query<T extends object = Record<string, unknown>>(
+    storeName: string,
+    indexName: string,
+    range: IDBValidKey | IDBKeyRange,
+    limit?: number
+  ): Promise<T[]>;
+  close(): Promise<void>;
+}
+
+export interface StoragePort {
+  readAll(): Promise<StorageData>;
+  setItem(key: string, value: unknown): Promise<boolean>;
+  getItem(key: string): Promise<unknown>;
+  removeItem(key: string): Promise<boolean>;
+  clear(): Promise<boolean>;
+}
+
+export type StorageHookTuple<T> = [
+  value: T,
+  setValue: (value: T | ((prev: T) => T)) => Promise<void>,
+  removeValue: () => Promise<void>,
+];

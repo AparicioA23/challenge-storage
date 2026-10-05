@@ -1,46 +1,46 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import StorageManager from '@features/storage/StorageManager';
-import StorageDisplay from '@shared/components/StorageDisplay';
-import './App.css';
+import React, { Suspense, lazy } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import "./App.css";
+import { RouteConfig } from "@/features/storage/types/routes";
 
-// Componente principal de la aplicación
-// Define la estructura base con rutas y provee el contexto necesario
-// para la gestión de almacenamiento
+const StorageManager = lazy(() => import("@features/storage/StorageManager"));
 
-type UserData = {
-  id: string;
-  name: string;
-  preferences: {
-    theme: string;
-    language: string;
-  };
-};
+const routes: RouteConfig[] = [
+  {
+    id: "storage-manager",
+    title: "Storage Manager",
+    path: "/",
+    element: <StorageManager />,
+    children: [
+      {
+        id: "local-storage",
+        title: "Local Storage",
+        path: "localstorage",
+        element: <>Local Storage</>,
+      },
+      {
+        id: "session-storage",
+        title: "Session Storage",
+        path: "sessionstorage",
+        element: <>Session Storage</>,
+      },
+      {
+        id: "cookies",
+        title: "Cookies",
+        path: "cookie",
+        element: <>Cookies</>,
+      },
+      {
+        id: "indexed-db",
+        title: "Indexed DB",
+        path: "indexeddb",
+        element: <>Indexed DB</>,
+      },
+    ],
+  },
+];
 
 const App: React.FC = () => {
-  const [userData, setUserData] = useState<UserData>({
-    id: '',
-    name: '',
-    preferences: {
-      theme: 'light',
-      language: 'es'
-    }
-  });
-  const [sessionData, setSessionData] = useState<string>('');
-  const [complexData, setComplexData] = useState<{ id: string; data: unknown }[]>([]);
-
-  const handleUserDataChange = (data: UserData) => {
-    setUserData(data);
-  };
-
-  const handleSessionDataChange = (data: string) => {
-    setSessionData(data);
-  };
-
-  const handleComplexDataChange = (data: { id: string; data: unknown }[]) => {
-    setComplexData(data);
-  };
-
   return (
     <Router>
       <div className="app-container">
@@ -48,29 +48,17 @@ const App: React.FC = () => {
           <h1>Gestor de Almacenamiento en Navegador</h1>
         </header>
         <main className="app-main">
-          <Routes>
-            <Route
-              path="/"
-              element=
-                <StorageManager
-                  userData={userData}
-                  onUserDataChange={handleUserDataChange}
-                  sessionData={sessionData}
-                  onSessionDataChange={handleSessionDataChange}
-                  complexData={complexData}
-                  onComplexDataChange={handleComplexDataChange}
-                />
-            />
-            <Route
-              path="/display"
-              element=
-                <StorageDisplay
-                  userData={userData}
-                  sessionData={sessionData}
-                  complexData={complexData}
-                />
-            />
-          </Routes>
+          <Suspense fallback={<p role="status">Cargando…</p>}>
+            <Routes>
+              {routes.map(route => (
+                <Route key={route.id} path={route.path} element={route.element}>
+                  {route.children?.map(child => (
+                    <Route key={child.id} path={child.path} element={child.element} />
+                  ))}
+                </Route>
+              ))}
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </Router>

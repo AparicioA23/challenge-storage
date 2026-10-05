@@ -1,0 +1,166 @@
+.app-container {
+  width: 100%;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 0 var(--space-2);
+}
+
+.app-header {
+  padding: var(--space-3) 0 var(--space-2);
+}
+
+.app-header h1 {
+  font-size: clamp(1.25rem, 4vw, 2rem);
+  color: var(--color-text);
+}
+
+.app-main {
+  padding-bottom: var(--space-3);
+}
+
+.storage-display-title {
+  font-size: clamp(1.125rem, 3vw, 1.5rem);
+  margin-bottom: var(--space-2);
+}
+
+.storage-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+
+.storage-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 0.0625rem solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.storage-card:focus-visible {
+  outline: 0.1875rem solid var(--color-primary);
+  outline-offset: 0.125rem;
+}
+
+.storage-card.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.storage-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.storage-card-title {
+  font-size: 1rem;
+}
+
+.storage-badge {
+  min-width: 1.75rem;
+  padding: 0 var(--space-1);
+  border-radius: 999rem;
+  background: var(--color-primary);
+  color: var(--color-surface);
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+.storage-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.storage-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem var(--space-1);
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.storage-key {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.storage-value {
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.storage-more,
+.storage-empty,
+.status-indicator {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.status-indicator.has-data {
+  color: var(--color-success);
+}
+
+.storage-info {
+  margin-top: var(--space-2);
+  font-size: 0.875rem;
+}
+
+.storage-display.loading,
+.storage-display.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+}
+
+.loading-spinner {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0.25rem solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: storage-spin 0.8s linear infinite;
+}
+
+.error-message {
+  color: var(--color-danger);
+}
+
+@keyframes storage-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner {
+    animation: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .app-container {
+    padding: 0 2rem;
+  }
+
+  .storage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .storage-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

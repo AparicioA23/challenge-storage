@@ -1,9 +1,8 @@
 import type {
-  StorageService,
   StorageResult,
-  StorageOptions,
   StorageError,
   IndexedDBConfig,
+  IndexedDBStorageService,
   TransactionBounds,
   QueryOptions,
 } from '../types/storageTypes';
@@ -19,18 +18,18 @@ const DEFAULT_CONFIG: IndexedDBConfig = {
   ],
 };
 
-class IndexedDBService implements StorageService {
+export class IndexedDBService implements IndexedDBStorageService {
   private db: IDBDatabase | null = null;
   private config: IndexedDBConfig;
   private initPromise: Promise<IDBDatabase> | null = null;
 
-  constructor(config: Partial<IndexedDBConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
-    this.initialize();
+  constructor(databaseName: string = DEFAULT_CONFIG.databaseName, version: number = DEFAULT_CONFIG.version) {
+    this.config = { ...DEFAULT_CONFIG, databaseName, version };
+    this.init();
   }
 
-  private initialize(): void {
-    if (this.initPromise) return;
+  init(): Promise<IDBDatabase> {
+    if (this.initPromise) return this.initPromise;
 
     this.initPromise = new Promise((resolve, reject) => {
       if (typeof window === 'undefined' || !window.indexedDB) {
@@ -66,6 +65,8 @@ class IndexedDBService implements StorageService {
         });
       };
     });
+
+    return this.initPromise;
   }
 
   private async getDatabase(): Promise<IDBDatabase> {
@@ -75,6 +76,13 @@ class IndexedDBService implements StorageService {
 
   private createError(code: string, message: string): StorageError {
     return { code, message, mechanism: 'indexedDB' };
+  }
+
+  private unwrap<T>(result: StorageResult<T>): T | undefined {
+    if (!result.success) {
+      throw new Error(result.error?.message ?? 'Error desconocido en IndexedDB');
+    }
+    return result.data;
   }
 
   private wrapTransaction<T>(bounds: TransactionBounds, operation: (store: IDBObjectStore) => IDBRequest<T>): Promise<StorageResult<T>> {
@@ -104,50 +112,43 @@ class IndexedDBService implements StorageService {
     });
   }
 
-  async get<T>(key: string): Promise<StorageResult<T>> {
-    return this.wrapTransaction<T>(
-      { storeName: 'cache', mode: 'readonly' },
-      (store) => store.get(key)
-    );
+  async save<T extends object>(storeName: string, value: T): Promise<void> {
+    this.unwrap(await this.wrapTransaction({ storeName, mode: 'readwrite' }, (store) => store.put(value)));
   }
 
-  async set<T>(key: string, value: T, options?: StorageOptions): Promise<StorageResult> {
-    const now = Date.now();
-    const item = {
-      key,
-      value,
-      timestamp: now,
-      expiresAt: options?.expiresIn ? now + options.expiresIn : undefined,
-    };
-
-    return this.wrapTransaction(
-      { storeName: 'cache', mode: 'readwrite' },
-      (store) => store.put(item)
-    );
+  async get<T extends object = Record<string, unknown>>(storeName: string, key: IDBValidKey): Promise<T | null> {
+    const result = await this.wrapTransaction<T>({ storeName, mode: 'readonly' }, (store) => store.get(key));
+    return this.unwrap(result) ?? null;
   }
 
-  async remove(key: string): Promise<StorageResult> {
-    return this.wrapTransaction(
-      { storeName: 'cache', mode: 'readwrite' },
-      (store) => store.delete(key)
-    );
+  async getAll<T extends object = Record<string, unknown>>(storeName: string): Promise<T[]> {
+    const result = await this.wrapTransaction<T[]>({ storeName, mode: 'readonly' }, (store) => store.getAll());
+    return this.unwrap(result) ?? [];
   }
 
-  async clear(): Promise<StorageResult> {
-    return this.wrapTransaction(
-      { storeName: 'cache', mode: 'readwrite' },
-      (store) => store.clear()
-    );
+  async getAllKeys(storeName: string): Promise<IDBValidKey[]> {
+    const result = await this.wrapTransaction({ storeName, mode: 'readonly' }, (store) => store.getAllKeys());
+    return this.unwrap(result) ?? [];
   }
 
-  async keys(): Promise<StorageResult<string[]>> {
-    return this.wrapTransaction<string[]>(
-      { storeName: 'cache', mode: 'readonly' },
-      (store) => store.getAllKeys()
-    );
+  async remove(storeName: string, key: IDBValidKey): Promise<void> {
+    this.unwrap(await this.wrapTransaction({ storeName, mode: 'readwrite' }, (store) => store.delete(key)));
   }
 
-  async query<T>(storeName: string, options: QueryOptions = {}): Promise<StorageResult<T[]>> {
+  async clear(storeName: string): Promise<void> {
+    this.unwrap(await this.wrapTransaction({ storeName, mode: 'readwrite' }, (store) => store.clear()));
+  }
+
+  async query<T extends object = Record<string, unknown>>(
+    storeName: string,
+    indexName: string,
+    range: IDBValidKey | IDBKeyRange,
+    limit?: number
+  ): Promise<T[]> {
+    return this.unwrap(await this.runQuery<T>(storeName, { indexName, range, limit })) ?? [];
+  }
+
+  private runQuery<T>(storeName: string, options: QueryOptions): Promise<StorageResult<T[]>> {
     return new Promise(async (resolve) => {
       try {
         const db = await this.getDatabase();
@@ -180,34 +181,6 @@ class IndexedDBService implements StorageService {
         });
       }
     });
-  }
-
-  async put<T>(storeName: string, key: string | IDBValidKey, value: T): Promise<StorageResult> {
-    return this.wrapTransaction(
-      { storeName, mode: 'readwrite' },
-      (store) => store.put({ ...value, [storeName === 'userData' ? 'id' : 'key']: key } as IDBValidKey)
-    );
-  }
-
-  async delete(storeName: string, key: string | IDBValidKey): Promise<StorageResult> {
-    return this.wrapTransaction(
-      { storeName, mode: 'readwrite' },
-      (store) => store.delete(key)
-    );
-  }
-
-  async getByStore<T>(storeName: string, key: string | IDBValidKey): Promise<StorageResult<T>> {
-    return this.wrapTransaction<T>(
-      { storeName, mode: 'readonly' },
-      (store) => store.get(key)
-    );
-  }
-
-  async getAllFromStore<T>(storeName: string): Promise<StorageResult<T[]>> {
-    return this.wrapTransaction<T[]>(
-      { storeName, mode: 'readonly' },
-      (store) => store.getAll()
-    );
   }
 
   async clearExpired(): Promise<StorageResult<number>> {
