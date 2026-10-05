@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
+import LocalStorageSection from "@/shared/components/LocalStorageSection";
 import { RouteConfig } from "@/features/storage/types/routes";
 
 const StorageManager = lazy(() => import("@features/storage/StorageManager"));
@@ -16,7 +17,7 @@ const routes: RouteConfig[] = [
         id: "local-storage",
         title: "Local Storage",
         path: "localstorage",
-        element: <>Local Storage</>,
+        element: <LocalStorageSection />,
       },
       {
         id: "session-storage",
