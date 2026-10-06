@@ -1,5 +1,6 @@
 import type { IncomingMessage, RequestListener, ServerResponse } from 'node:http';
 import type { AuthController } from '../auth/authController.ts';
+import type { CatalogController } from '../catalog/catalogController.ts';
 import type { Logger } from '../logger.ts';
 import { applyCorsHeaders } from './cors.ts';
 import { sendProblem } from './json.ts';
@@ -10,14 +11,21 @@ type RouteTable = Record<string, Record<string, RouteHandler>>;
 
 export interface AppDependencies {
   authController: AuthController;
+  catalogController: CatalogController;
   logger: Logger;
   corsOrigin: string;
 }
 
-export function createRequestListener({ authController, logger, corsOrigin }: AppDependencies): RequestListener {
+export function createRequestListener({
+  authController,
+  catalogController,
+  logger,
+  corsOrigin,
+}: AppDependencies): RequestListener {
   const routes: RouteTable = {
     '/api/auth/login': { POST: (request, response) => authController.login(request, response) },
     '/api/auth/validate': { GET: (request, response) => authController.validate(request, response) },
+    '/api/catalog/products': { GET: (request, response) => catalogController.listProducts(request, response) },
   };
 
   return async (request, response) => {

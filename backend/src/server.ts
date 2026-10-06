@@ -1,9 +1,12 @@
 import { createServer, type Server } from 'node:http';
+import { setTimeout as wait } from 'node:timers/promises';
 import { AuthController } from './auth/authController.ts';
 import { AuthCookie } from './auth/authCookie.ts';
 import { AuthService } from './auth/authService.ts';
 import { HmacJwtTokenService } from './auth/hmacJwtTokenService.ts';
 import { StaticCredentialsVerifier } from './auth/staticCredentialsVerifier.ts';
+import { CatalogController } from './catalog/catalogController.ts';
+import { GeneratedProductCatalog } from './catalog/generatedProductCatalog.ts';
 import { loadConfig, type AppConfig } from './config.ts';
 import { createRequestListener } from './http/app.ts';
 import { createJsonLogger, type Logger } from './logger.ts';
@@ -12,7 +15,13 @@ function buildServer(config: AppConfig, logger: Logger): Server {
   const tokenService = new HmacJwtTokenService(config.jwtSecret, config.tokenTtlSeconds);
   const authService = new AuthService(new StaticCredentialsVerifier(config.demoUser), tokenService);
   const authController = new AuthController(authService, new AuthCookie(config.cookieSecure), logger);
-  return createServer(createRequestListener({ authController, logger, corsOrigin: config.corsOrigin }));
+  const catalogController = new CatalogController(new GeneratedProductCatalog(config.catalogProductsPerCategory), logger, {
+    latencyMs: config.catalogLatencyMs,
+    wait: (ms) => wait(ms),
+  });
+  return createServer(
+    createRequestListener({ authController, catalogController, logger, corsOrigin: config.corsOrigin })
+  );
 }
 
 function registerGracefulShutdown(server: Server, logger: Logger): void {
