@@ -1,4 +1,5 @@
 import React from "react";
+import "./IndexedStorageSection.css";
 import Select from "@shared/components/UI/Select";
 import Button from "@shared/components/UI/Button";
 import useCatalogQuery from "@/features/storage/hooks/useCatalogQuery";
