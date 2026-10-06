@@ -1,6 +1,6 @@
 # storage-auth-backend
 
-API mínima de autenticación para el reto de almacenamiento en navegadores. Expone dos endpoints: uno que emite un token (JWT HS256) y lo entrega en una cookie `HttpOnly`, y otro que verifica que el token de esa cookie tenga firma válida y no esté vencido.
+API mínima para el reto de almacenamiento en navegadores. Expone dos endpoints de autenticación (uno que emite un token JWT HS256 en una cookie `HttpOnly` y otro que verifica que ese token tenga firma válida y no esté vencido) y un endpoint de catálogo que devuelve datos de prueba extensos para ejercitar la caché del frontend en IndexedDB.
 
 No tiene dependencias de runtime: usa `node:http` y `node:crypto`, y Node ejecuta el TypeScript directamente (type stripping). TypeScript y `@types/node` solo se usan para el chequeo de tipos.
 
@@ -33,6 +33,8 @@ node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'
 | `TOKEN_TTL_SECONDS` | no | `300` | Vigencia del token en segundos. |
 | `PORT` | no | `4000` | Puerto HTTP (el frontend de Vite usa el 3000). |
 | `CORS_ORIGIN` | no | `http://localhost:3000` | Origen permitido por CORS (con credenciales). |
+| `CATALOG_LATENCY_MS` | no | `1000` | Latencia simulada del catálogo en milisegundos; `0` la desactiva. |
+| `CATALOG_PRODUCTS_PER_CATEGORY` | no | `1000` | Productos que devuelve el catálogo por categoría. |
 | `COOKIE_SECURE` | no | `true` | Marca la cookie del token como `Secure`. Chrome y Firefox la aceptan en `http://localhost`; para Safari en local usar `false`. |
 
 ## Endpoints
@@ -83,6 +85,40 @@ Errores `401`, distinguibles por el campo `type`. En los casos de token inválid
 | `/problems/invalid-token` | Token mal formado, firma inválida o algoritmo distinto de HS256. |
 | `/problems/expired-token` | Token vencido. Incluye `expiredAt`. |
 
+### `GET /api/catalog/products?category=<categoria>`
+
+Devuelve el catálogo de una categoría: `electronics`, `books` o `clothing`. Los productos se generan de forma determinista (la misma categoría siempre devuelve los mismos datos) y se conservan en memoria tras la primera consulta.
+
+```http
+GET /api/catalog/products?category=books
+```
+
+Respuesta `200` con `Cache-Control: no-store`, para que el navegador no guarde la respuesta en su caché HTTP y la única caché sea la de IndexedDB del frontend:
+
+```json
+{
+  "category": "books",
+  "total": 1000,
+  "products": [
+    {
+      "id": "books-1",
+      "sku": "LIB-00001",
+      "name": "Antología tapa dura 1",
+      "category": "books",
+      "brand": "Ámbar",
+      "price": 224575,
+      "stock": 468,
+      "rating": 1.7,
+      "tags": ["negocios", "tecnología", "infantil"],
+      "description": "Antología tapa dura 1 de Ámbar. Producto de la categoría libros pensado para uso negocios, tecnología, infantil.",
+      "createdAt": "2024-05-07T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+La respuesta pesa unos 350 KB y tarda `CATALOG_LATENCY_MS` en llegar. Cada consulta servida queda en el log como `catalog_served` con la categoría y el total. Si la categoría falta o no es válida responde `400` (`/problems/validation-error`, campo `category`).
+
 Todos los errores siguen RFC 7807 (`application/problem+json`).
 
 ## Scripts
@@ -118,6 +154,11 @@ src/
     credentialsParser.ts       validación del cuerpo del login
     authCookie.ts              emisión, lectura y borrado de la cookie HttpOnly del token
     authController.ts          handlers HTTP de los dos endpoints
+  catalog/
+    catalogTypes.ts            contratos (ProductCatalog) y categorías soportadas
+    generatedProductCatalog.ts generación determinista de productos, memorizada por categoría
+    categoryParser.ts          validación del query param category
+    catalogController.ts       handler HTTP del catálogo con latencia simulada
   http/
     app.ts                     router, CORS y manejo de errores
     json.ts                    lectura de JSON con límite de tamaño y respuestas
