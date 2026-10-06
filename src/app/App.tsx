@@ -1,4 +1,5 @@
 import React, { Suspense, lazy } from "react";
+import IndexedStorageSection from "@/shared/components/IndexedStorageSection";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import LocalStorageSection from "@/shared/components/LocalStorageSection";
@@ -37,7 +38,7 @@ const routes: RouteConfig[] = [
         id: "indexed-db",
         title: "Indexed DB",
         path: "indexeddb",
-        element: <>Indexed DB</>,
+        element: <IndexedStorageSection />,
       },
     ],
   },
