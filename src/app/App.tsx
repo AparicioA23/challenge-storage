@@ -4,6 +4,7 @@ import "./App.css";
 import LocalStorageSection from "@/shared/components/LocalStorageSection";
 import SessionStorageSection from "@/shared/components/SessionStorageSections";
 import { RouteConfig } from "@/features/storage/types/routes";
+import CookiesStorageSection from "@/shared/components/CookiesStorageSection";
 
 const StorageManager = lazy(() => import("@features/storage/StorageManager"));
 
@@ -30,7 +31,7 @@ const routes: RouteConfig[] = [
         id: "cookies",
         title: "Cookies",
         path: "cookie",
-        element: <>Cookies</>,
+        element: <CookiesStorageSection />,
       },
       {
         id: "indexed-db",
