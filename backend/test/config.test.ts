@@ -22,6 +22,30 @@ describe('loadConfig', () => {
     assert.equal(config.corsOrigin, 'http://localhost:3000');
     assert.equal(config.cookieSecure, true);
     assert.deepEqual(config.demoUser, { username: 'ana', password: 'S3cret!' });
+    assert.equal(config.catalogLatencyMs, 1000);
+    assert.equal(config.catalogProductsPerCategory, 1000);
+  });
+
+  it('should accept 0 as CATALOG_LATENCY_MS to disable the simulated latency', () => {
+    // Arrange
+    const env = { ...VALID_ENV, CATALOG_LATENCY_MS: '0' };
+
+    // Act
+    const config = loadConfig(env);
+
+    // Assert
+    assert.equal(config.catalogLatencyMs, 0);
+  });
+
+  it('should fail when CATALOG_LATENCY_MS is negative', () => {
+    // Arrange
+    const env = { ...VALID_ENV, CATALOG_LATENCY_MS: '-1' };
+
+    // Act
+    const load = () => loadConfig(env);
+
+    // Assert
+    assert.throws(load, /CATALOG_LATENCY_MS/);
   });
 
   it('should fail when JWT_SECRET is missing', () => {

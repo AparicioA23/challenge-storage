@@ -5,6 +5,8 @@ import { after, before, beforeEach, describe, it, mock } from 'node:test';
 import { AuthController } from '../src/auth/authController.ts';
 import { AuthCookie } from '../src/auth/authCookie.ts';
 import type { Authenticator, Credentials, LoginResult, TokenVerification } from '../src/auth/authTypes.ts';
+import { CatalogController } from '../src/catalog/catalogController.ts';
+import type { CatalogCategory, CatalogProduct, ProductCatalog } from '../src/catalog/catalogTypes.ts';
 import { createRequestListener } from '../src/http/app.ts';
 import type { Logger } from '../src/logger.ts';
 
@@ -16,6 +18,24 @@ const authenticator = {
   validate: mock.fn((_token: string): TokenVerification => ({ status: 'invalid' })),
 } satisfies Authenticator;
 const silentLogger: Logger = { info: mock.fn(), warn: mock.fn(), error: mock.fn() };
+const CATALOG_LATENCY_MS = 750;
+const BOOK: CatalogProduct = {
+  id: 'books-1',
+  sku: 'LIB-00001',
+  name: 'Novela ilustrada 1',
+  category: 'books',
+  brand: 'Prisma',
+  price: 45000,
+  stock: 12,
+  rating: 4.5,
+  tags: ['ficción'],
+  description: 'Novela ilustrada 1 de Prisma.',
+  createdAt: '2024-03-01T00:00:00.000Z',
+};
+const catalog = {
+  listByCategory: mock.fn((_category: CatalogCategory): CatalogProduct[] => [BOOK]),
+} satisfies ProductCatalog;
+const wait = mock.fn(async (_ms: number) => {});
 
 interface ProblemBody {
   type: string;
@@ -42,7 +62,10 @@ async function readProblem(response: Response): Promise<ProblemBody> {
 describe('HTTP API', () => {
   before(async () => {
     const authController = new AuthController(authenticator, new AuthCookie(true), silentLogger);
-    server = createServer(createRequestListener({ authController, logger: silentLogger, corsOrigin: CORS_ORIGIN }));
+    const catalogController = new CatalogController(catalog, silentLogger, { latencyMs: CATALOG_LATENCY_MS, wait });
+    server = createServer(
+      createRequestListener({ authController, catalogController, logger: silentLogger, corsOrigin: CORS_ORIGIN })
+    );
     await new Promise<void>((resolve) => {
       server.listen(0, resolve);
     });
@@ -59,6 +82,8 @@ describe('HTTP API', () => {
   beforeEach(() => {
     authenticator.login.mock.resetCalls();
     authenticator.validate.mock.resetCalls();
+    catalog.listByCategory.mock.resetCalls();
+    wait.mock.resetCalls();
   });
 
   describe('POST /api/auth/login', () => {
@@ -203,6 +228,61 @@ describe('HTTP API', () => {
       assert.equal(response.status, 401);
       assert.equal((await readProblem(response)).type, '/problems/missing-token');
       assert.equal(authenticator.validate.mock.callCount(), 0);
+    });
+  });
+
+  describe('GET /api/catalog/products', () => {
+    it('should return the products of the requested category without letting the browser cache them', async () => {
+      // Arrange
+      const url = `${baseUrl}/api/catalog/products?category=books`;
+
+      // Act
+      const response = await fetch(url);
+
+      // Assert
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.equal(response.headers.get('access-control-allow-origin'), CORS_ORIGIN);
+      assert.deepEqual(await response.json(), { category: 'books', total: 1, products: [BOOK] });
+      assert.deepEqual(catalog.listByCategory.mock.calls[0].arguments, ['books']);
+    });
+
+    it('should apply the configured latency before answering', async () => {
+      // Arrange
+      const url = `${baseUrl}/api/catalog/products?category=books`;
+
+      // Act
+      await fetch(url);
+
+      // Assert
+      assert.deepEqual(wait.mock.calls[0].arguments, [CATALOG_LATENCY_MS]);
+    });
+
+    it('should answer 400 when the category is not supported', async () => {
+      // Arrange
+      const url = `${baseUrl}/api/catalog/products?category=toys`;
+
+      // Act
+      const response = await fetch(url);
+
+      // Assert
+      const problem = await readProblem(response);
+      assert.equal(response.status, 400);
+      assert.equal(problem.type, '/problems/validation-error');
+      assert.equal(problem.errors[0].field, 'category');
+      assert.equal(catalog.listByCategory.mock.callCount(), 0);
+    });
+
+    it('should answer 400 when the category is missing', async () => {
+      // Arrange
+      const url = `${baseUrl}/api/catalog/products`;
+
+      // Act
+      const response = await fetch(url);
+
+      // Assert
+      assert.equal(response.status, 400);
+      assert.equal(wait.mock.callCount(), 0);
     });
   });
 
