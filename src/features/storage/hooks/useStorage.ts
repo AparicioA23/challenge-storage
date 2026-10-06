@@ -1,26 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { StorageMechanism, StorageOptions, StorageResult, StorageService, StorageHookResult, StorageError } from '../types/storageTypes';
+import type { StorageHookTuple, StorageResult, WebStorageMechanism, WebStorageService } from '../types/storageTypes';
 import { localStorageService } from '../services/localStorageService';
 import { sessionStorageService } from '../services/sessionStorageService';
-import { cookieService } from '../services/cookieService';
 import { indexedDBService } from '../services/indexedDBService';
 
-const services: Record<StorageMechanism, StorageService> = {
+const services: Record<WebStorageMechanism, WebStorageService> = {
   localStorage: localStorageService,
   sessionStorage: sessionStorageService,
-  cookie: cookieService,
-  indexedDB: indexedDBService,
 };
 
-interface UseStorageConfig {
-  mechanism?: StorageMechanism;
-  defaultValue?: unknown;
-  options?: StorageOptions;
-  syncAcrossTabs?: boolean;
-  autoRefresh?: boolean;
-}
-
-function getService(mechanism: StorageMechanism): StorageService {
+function getService(mechanism: WebStorageMechanism): WebStorageService {
   const service = services[mechanism];
   if (!service) {
     throw new Error(`Mecanismo de almacenamiento no soportado: ${mechanism}`);
@@ -28,112 +17,59 @@ function getService(mechanism: StorageMechanism): StorageService {
   return service;
 }
 
-function createStorageError(code: string, message: string, mechanism?: StorageMechanism): StorageError {
-  return { code, message, mechanism };
+function reportHookError(operation: string, err: unknown): void {
+  console.error(`[useStorage] Error al ${operation}:`, err instanceof Error ? err.message : err);
 }
 
-export function useStorage<T>(key: string, config: UseStorageConfig = {}): StorageHookResult<T> {
-  const {
-    mechanism = 'localStorage',
-    defaultValue,
-    options = {},
-    syncAcrossTabs = false,
-    autoRefresh = false,
-  } = config;
-
-  const [data, setDataState] = useState<T | null>(() => {
-    if (defaultValue !== undefined) return defaultValue as T;
-    return null;
-  });
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<StorageError | null>(null);
-  const serviceRef = useRef<StorageService>(getService(mechanism));
+export function useStorage<T = unknown>(
+  key: string,
+  defaultValue: NoInfer<T>,
+  mechanism: WebStorageMechanism = 'localStorage',
+  syncAcrossTabs = false
+): StorageHookTuple<T> {
+  const [data, setDataState] = useState<T>(defaultValue);
+  const serviceRef = useRef<WebStorageService>(getService(mechanism));
   const keyRef = useRef(key);
-  const optionsRef = useRef(options);
 
   keyRef.current = key;
-  optionsRef.current = options;
 
   const loadData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
     try {
-      const result: StorageResult<T> = await serviceRef.current.get<T>(keyRef.current);
-
-      if (result.success) {
-        setDataState(result.data ?? null);
-      } else if (result.error) {
-        setError(result.error);
-        if (defaultValue !== undefined) {
-          setDataState(defaultValue as T);
-        }
-      }
+      const stored = await serviceRef.current.getItem<T>(keyRef.current);
+      setDataState(stored ?? defaultValue);
     } catch (err) {
-      const error = createStorageError(
-        'LOAD_ERROR',
-        err instanceof Error ? err.message : 'Error desconocido al cargar datos',
-        mechanism
-      );
-      setError(error);
-      if (defaultValue !== undefined) {
-        setDataState(defaultValue as T);
-      }
-    } finally {
-      setIsLoading(false);
+      reportHookError('cargar datos', err);
+      setDataState(defaultValue);
     }
-  }, [defaultValue, mechanism]);
+  }, [defaultValue]);
 
-  const setData = useCallback(async (value: T | ((prev: T | null) => T)) => {
-    setError(null);
-
+  const setData = useCallback(async (value: T | ((prev: T) => T)) => {
     try {
       const finalValue = typeof value === 'function'
-        ? (value as (prev: T | null) => T)(data)
+        ? (value as (prev: T) => T)(data)
         : value;
 
-      const result: StorageResult = await serviceRef.current.set(
-        keyRef.current,
-        finalValue,
-        optionsRef.current
-      );
+      const saved = await serviceRef.current.setItem(keyRef.current, finalValue);
 
-      if (result.success) {
+      if (saved) {
         setDataState(finalValue);
-      } else if (result.error) {
-        setError(result.error);
       }
     } catch (err) {
-      const error = createStorageError(
-        'SET_ERROR',
-        err instanceof Error ? err.message : 'Error desconocido al guardar datos',
-        mechanism
-      );
-      setError(error);
+      reportHookError('guardar datos', err);
     }
-  }, [data, mechanism]);
+  }, [data]);
 
   const removeData = useCallback(async () => {
-    setError(null);
-
     try {
-      const result: StorageResult = await serviceRef.current.remove(keyRef.current);
+      const removed = await serviceRef.current.removeItem(keyRef.current);
 
-      if (result.success) {
-        setDataState(null);
-      } else if (result.error) {
-        setError(result.error);
+      if (removed) {
+        setDataState(defaultValue);
       }
     } catch (err) {
-      const error = createStorageError(
-        'REMOVE_ERROR',
-        err instanceof Error ? err.message : 'Error desconocido al eliminar datos',
-        mechanism
-      );
-      setError(error);
+      reportHookError('eliminar datos', err);
     }
-  }, [mechanism]);
+  }, [defaultValue]);
 
   useEffect(() => {
     loadData();
@@ -152,40 +88,26 @@ export function useStorage<T>(key: string, config: UseStorageConfig = {}): Stora
             setDataState(event.newValue as T);
           }
         } else {
-          setDataState(null);
+          setDataState(defaultValue);
         }
       }
     };
 
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [syncAcrossTabs, mechanism]);
+  }, [syncAcrossTabs, mechanism, defaultValue]);
 
-  useEffect(() => {
-    if (!autoRefresh || mechanism !== 'indexedDB') return;
-
-    const intervalId = setInterval(loadData, 5000);
-    return () => clearInterval(intervalId);
-  }, [autoRefresh, loadData, mechanism]);
-
-  return {
-    data,
-    isLoading,
-    error,
-    setData,
-    removeData,
-    refresh: loadData,
-  };
+  return [data, setData, removeData];
 }
 
 export function useMultipleStorage<T extends Record<string, unknown>>(
-  keys: (keyof T)[],
-  config: UseStorageConfig = {}
-): { [K in keyof T]: StorageHookResult<T[K]> } {
-  const result = {} as { [K in keyof T]: StorageHookResult<T[K]> };
+  keys: (keyof T & string)[],
+  mechanism: WebStorageMechanism = 'localStorage'
+): Record<keyof T, StorageHookTuple<T[keyof T] | null>> {
+  const result = {} as Record<keyof T, StorageHookTuple<T[keyof T] | null>>;
 
   keys.forEach((key) => {
-    result[key] = useStorage<T[keyof T]>(key as string, config);
+    result[key] = useStorage<T[keyof T] | null>(key, null, mechanism);
   });
 
   return result;
@@ -193,7 +115,7 @@ export function useMultipleStorage<T extends Record<string, unknown>>(
 
 export function useStorageSync(
   keys: string[],
-  mechanism: StorageMechanism = 'localStorage'
+  mechanism: WebStorageMechanism = 'localStorage'
 ): { sync: () => Promise<void>; isSyncing: boolean } {
   const [isSyncing, setIsSyncing] = useState(false);
   const service = getService(mechanism);
@@ -202,22 +124,16 @@ export function useStorageSync(
     setIsSyncing(true);
 
     try {
-      const allKeysResult = await service.keys();
-
-      if (!allKeysResult.success || !allKeysResult.data) {
-        setIsSyncing(false);
-        return;
-      }
-
-      const keysToSync = keys.filter(k => allKeysResult.data!.includes(k));
+      const storedKeys = service.getAllKeys();
+      const keysToSync = keys.filter(k => storedKeys.includes(k));
 
       await Promise.all(
         keysToSync.map(async (key) => {
-          const valueResult = await service.get(key);
-          if (valueResult.success && valueResult.data !== undefined) {
+          const value = await service.getItem(key);
+          if (value !== null) {
             const otherMechanism = mechanism === 'localStorage' ? 'sessionStorage' : 'localStorage';
             const otherService = getService(otherMechanism);
-            await otherService.set(key, valueResult.data);
+            await otherService.setItem(key, value);
           }
         })
       );
@@ -229,26 +145,19 @@ export function useStorageSync(
   return { sync, isSyncing };
 }
 
-export function useClearExpired(mechanism: StorageMechanism = 'indexedDB'): {
-  clear: () => Promise<number>;
-  isClearing: boolean;
-} {
+export function useClearExpired(): { clear: () => Promise<number>; isClearing: boolean } {
   const [isClearing, setIsClearing] = useState(false);
-  const service = getService(mechanism);
 
   const clear = useCallback(async (): Promise<number> => {
     setIsClearing(true);
 
     try {
-      if (mechanism === 'indexedDB' && 'clearExpired' in service) {
-        const result = await (service as { clearExpired: () => Promise<StorageResult<number>> }).clearExpired();
-        return result.success ? result.data ?? 0 : 0;
-      }
-      return 0;
+      const result: StorageResult<number> = await indexedDBService.clearExpired();
+      return result.success ? result.data ?? 0 : 0;
     } finally {
       setIsClearing(false);
     }
-  }, [mechanism, service]);
+  }, []);
 
   return { clear, isClearing };
 }

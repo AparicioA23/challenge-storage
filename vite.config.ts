@@ -1,21 +1,11 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { configDefaults } from 'vitest/config';
 import { fileURLToPath, URL } from 'node:url';
 
-// Configuración de Vite para el proyecto React con TypeScript
-// Incluye soporte para JSX, alias de rutas y configuración de testing
-// para integración con Vitest
-
 export default defineConfig({
-  plugins: [
-    react({
-      jsxImportSource: 'react',
-      babel: {
-        presets: ['@babel/preset-typescript'],
-        plugins: [['@babel/plugin-transform-typescript', { isTSX: true }]]
-      }
-    })
-  ],
+  plugins: [react()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -36,6 +26,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.ts'],
+    exclude: [...configDefaults.exclude, 'backend/**'],
     css: true,
     coverage: {
       provider: 'v8',

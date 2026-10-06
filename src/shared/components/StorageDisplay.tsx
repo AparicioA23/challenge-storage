@@ -97,7 +97,7 @@ const StorageDisplay: React.FC<StorageDisplayProps> = ({
   const storageTypes = [
     { type: 'localStorage' as StorageType, title: 'Local Storage', data: localStorageData },
     { type: 'sessionStorage' as StorageType, title: 'Session Storage', data: sessionStorageData },
-    { type: 'cookies' as StorageType, title: 'Cookies', data: cookieData },
+    { type: 'cookie' as StorageType, title: 'Cookies', data: cookieData },
     { type: 'indexedDB' as StorageType, title: 'IndexedDB', data: indexedDBData }
   ];
 

@@ -1,4 +1,4 @@
-import { StorageData, StorageError, StorageOperation } from '@features/storage/types/storageTypes';
+import type { StorageData, StorageError, StorageOperation, WebStorageMechanism } from '@features/storage/types/storageTypes';
 
 const DEFAULT_ENCODING = 'utf-8';
 const MAX_STORAGE_SIZE = 5 * 1024 * 1024;
@@ -80,7 +80,7 @@ export function estimateStorageUsage(data: string): number {
   return new Blob([data]).size;
 }
 
-export function isStorageAvailable(type: 'localStorage' | 'sessionStorage' | 'indexedDB'): boolean {
+export function isStorageAvailable(type: WebStorageMechanism): boolean {
   try {
     const storage = window[type];
     const testKey = '__storage_test__';

@@ -1,6 +1,6 @@
-import { CookieOptions, CookieService as ICookieService } from './storageTypes';
+import type { CookieOptions, CookieStorageService } from '../types/storageTypes';
 
-export class CookieService implements ICookieService {
+export class CookieService implements CookieStorageService {
   private defaultOptions: CookieOptions;
 
   constructor() {
@@ -155,6 +155,12 @@ export class CookieService implements ICookieService {
     }
     
     return keys;
+  }
+
+  getAll(): Record<string, string> {
+    return Object.fromEntries(
+      this.getAllKeys().map((key) => [key, this.getCookie(key) ?? ''])
+    );
   }
 
   isExpired(key: string): boolean {

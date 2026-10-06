@@ -1,0 +1,22 @@
+{
+  "name": "storage-auth-backend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "API mínima de autenticación: emite un token para guardar en cookies y valida que no esté vencido.",
+  "type": "module",
+  "packageManager": "pnpm@11.1.1",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.ts",
+    "dev": "node --watch --env-file-if-exists=.env src/server.ts",
+    "build": "tsc",
+    "typecheck": "tsc",
+    "test": "node --test \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "22.19.21",
+    "typescript": "5.8.3"
+  }
+}
